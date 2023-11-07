@@ -1,12 +1,8 @@
 package com.example.springdoc;
 
-import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import io.swagger.v3.oas.annotations.Operation;
-import io.swagger.v3.oas.annotations.info.Contact;
-import io.swagger.v3.oas.annotations.info.Info;
-import io.swagger.v3.oas.annotations.servers.Server;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import io.swagger.v3.oas.annotations.tags.Tags;
 import jakarta.validation.Valid;
 import org.springframework.hateoas.Link;
 import org.springframework.http.HttpStatus;
@@ -14,28 +10,12 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 @RestController
 @RequestMapping(CustomerController.URI)
-@OpenAPIDefinition(
-        info = @Info(title = "Customer API",
-                description = """
-                #### Customer REST API comes with all basic operations for customers
-                
-                """,
-                version = "1.0",
-                contact=@Contact(name="Prasanta Bhuyan",email = "prasanta.k.bhuyan@gmail.com")),
-        tags = {@Tag(name=CustomerController.TAG)},
-        servers = {
-                @Server(url = "http://localhost:8080", description = "Local Server"),
-                @Server(url = "http://dev.app.com", description = "Dev Server"),
-                @Server(url = "http://qa.app.com", description = "QA Server")
-        }
-)
 @Tag(name=CustomerController.TAG)
 public class CustomerController {
 
@@ -52,11 +32,13 @@ public class CustomerController {
 
     @ResponseStatus(HttpStatus.OK)
     @GetMapping(produces = MediaType.APPLICATION_JSON_VALUE)
+    @SecurityRequirement(name = "CustomerSecurityScheme")
     @Operation(summary = "List Customers", description = """
-    Returns a list of all customers. Returns an empty array if no customer present in the system.
+    ### Authentication required
+    Returns status 200: Returns a list of all customers. Returns an empty array 
+    if no customer present in the system
     
-    Returns status 200.
-    
+    Returns status 403: If not authenticated  
     """)
     public List<CustomerResponseDTO> getCustomers() {
         return customers.stream().map(this::getCustomerResponseDTO).toList();
@@ -65,11 +47,13 @@ public class CustomerController {
     @ResponseStatus(HttpStatus.CREATED)
     @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Add Customer", description = """
+    ### Authentication not required
+
     Post a CustomerDTO to create new customer.
     
-    Returns status 201.
+    Returns status 201: When successfully created
     """)
-    public CustomerResponseDTO saveCustomers(@Valid @RequestBody CustomerDTO customerDTO) {
+    public CustomerResponseDTO saveCustomer(@Valid @RequestBody CustomerDTO customerDTO) {
         CustomerResponseDTO customerResponseDTO = new CustomerResponseDTO(
                 UUID.randomUUID().toString(),
                 customerDTO.getFirstName(),
@@ -80,10 +64,15 @@ public class CustomerController {
         return customerResponseDTO;
     }
 
+
+    @SecurityRequirement(name = "CustomerSecurityScheme")
     @Operation(summary = "Get Customer By Id", description = """
-    Returns 200: When customer found
+    ### Authentication required
+    Returns status 200: When customer found
     
-    Returns 404:Not Found if no customer found with the given id.
+    Returns status 404: If no customer found with the given id
+    
+    Returns status 403: If not authenticated
     """)
     @GetMapping(path = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<CustomerResponseDTO> getCustomer(@PathVariable String id) {
@@ -99,12 +88,16 @@ public class CustomerController {
 
 
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @DeleteMapping(path = "/{id}", produces=MediaType.TEXT_PLAIN_VALUE)
+    @DeleteMapping(path = "/{id}", produces=MediaType.APPLICATION_JSON_VALUE)
     @Operation(summary = "Delete Customer By Id", description = """
-    Returns 404:Not Found if no customer found with the given id.
+    ### ADMIN role required
+    Returns 204:No Content after successful deletion
+
+    Returns 404:Not Found if no customer found with the given id
     
-    Returns 204:No Content after successful deletion.
+    Returns 403:If user is not an ADMIN
     """)
+    @SecurityRequirement(name = "CustomerSecurityScheme")
     public ResponseEntity<String> deleteCustomer(@PathVariable String id) {
         if(customers.stream().filter(it -> it.getId().equals(id)).count()==0){
             return ResponseEntity.notFound().build();
@@ -115,13 +108,13 @@ public class CustomerController {
 
 
     private CustomerResponseDTO getCustomerResponseDTO(Customer customer){
-            CustomerResponseDTO customerResponseDTO = new CustomerResponseDTO(
-                    customer.getId(),
-                    customer.getFirstName(),
-                    customer.getLastName(),
-                    customer.getEmail()
-            );
-            customerResponseDTO.add(Link.of(URI + "/" + customerResponseDTO.getId(), "self"));
-            return customerResponseDTO;
+        CustomerResponseDTO customerResponseDTO = new CustomerResponseDTO(
+            customer.getId(),
+            customer.getFirstName(),
+            customer.getLastName(),
+            customer.getEmail()
+        );
+        customerResponseDTO.add(Link.of(URI + "/" + customerResponseDTO.getId(), "self"));
+        return customerResponseDTO;
     }
 }
